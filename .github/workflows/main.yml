@@ -17,13 +17,18 @@ jobs:
 
     - name: Checkout
       uses: actions/checkout@v2
+    - name: 10.Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: 11.Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
 
     - name: 12.Login to Docker Hub
       uses: docker/login-action@v2
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        
+
     - name: 13.Build DockerImage and push
       run: |
         docker build -t hackerlan7/bc-go-api:latest .
