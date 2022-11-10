@@ -100,7 +100,7 @@ jobs:
           cd $SERVICE_NAME
           export GO111MODULE=on
           GOSUMDB=off go mod download
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=direct GOSUMDB=off go build -v cmd/server/main.go   
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=direct GOSUMDB=off go build -v main.go   
 
       # - name: 10.Login to Amazon ECR
       #   id: login-ecr
