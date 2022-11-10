@@ -4,184 +4,219 @@ on:
   push:
     branches:
       - master
-  #   tags:
-  #     - '*'
-  # pull_request:
-
-env: 
-    ENV: dr
-    SERVICE_NAME: ${{ github.event.repository.name }}
-    INFRA_ENV_REPO: infra-env
-    GITHUB_ORG: PGITAb
-    AWS_REGION: eu-central-1
-    BUILD_VERSION: v${{github.run_number}}-build
+    tags:
+      - '*'
+  pull_request:
 
 jobs:
     build-and-push:
       name: Build the docker image and push to ECR
-      #runs-on: ["self-hosted","customized"]
-      runs-on: ubuntu-latest
-      #timeout-minutes: 5
+      runs-on: ["self-hosted","customized"]
       strategy:
         matrix:
-          go-version: [ '1.18' ]     
+          go-version: [ '1.18' ]  
+    steps:
 
-      steps:
-      - name: 01.Setup go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ matrix.go-version }}
+    - name: Checkout
+      uses: actions/checkout@v2
 
-      - name: 02.Checkout
-        uses: actions/checkout@master
-        with:
-            path: ./${{ env.SERVICE_NAME }}
-            fetch-depth: 0            
-            token: ${{ secrets.ORG_GITHUB_TOKEN }}  
-
-      - name: 03.Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: 04.Get new tag version
-        id: getbumptag
-        uses: anothrNick/github-tag-action@1.36.0
-        env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            WITH_V: true
-            DRY_RUN: true
-            DEFAULT_BUMP: patch
-            RELEASE_BRANCHES: master
-            SOURCE: ${{ env.SERVICE_NAME }}
-
-      # - name: 04.Bump version and push tag
-      #   id: bumptag
-      #   uses: anothrNick/github-tag-action@1.36.0
-      #   env:
-      #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #       WITH_V: true
-      #       DRY_RUN: false
-      #       DEFAULT_BUMP: patch
-      #       RELEASE_BRANCHES: master
-      #       SOURCE: ${{ env.SERVICE_NAME }}
-
-      - name: 05.Get IMAGE TAG
-        run: |
-              VERSION=${{ steps.getbumptag.outputs.new_tag }}
-              echo "VERSION=${{ steps.getbumptag.outputs.new_tag }}" >> $GITHUB_ENV
-              echo "IMAGE_TAG=$BUILD_VERSION-$VERSION" >> $GITHUB_ENV     
-
-      - name: 06.Bump Version and Commit New Version files Update
-        run: |       
-              cd $SERVICE_NAME
-              echo $VERSION > .version.$ENV
-              git config --global user.name 'Version_bot'
-              git config --global user.email 'Version_bot@users.noreply.github.com'
-              git add .version.$ENV         
-              git commit -am "Version update to $VERSION [skip ci]" && git push || echo "No New version Commit"
-
-      - name: 07.Go mod cache
-        uses: actions/cache@v2
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ matrix.go-version }}-mod-${{ hashFiles('**/go.mod') }}-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-${{ matrix.go-version }}
-
-      - name: 08.Configure Git for private modules
-        run: |
-          git config --global url."https://${{ secrets.ORG_GITHUB_TOKEN }}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
-
-      - name: 09.Go Build application
-        run: |
-          cd $SERVICE_NAME
-          export GO111MODULE=on
-          GOSUMDB=off go mod download
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=direct GOSUMDB=off go build -v cmd/server/main.go   
-
-      # - name: 10.Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v1    
-
-      # - name: 11.Set IMGAE_REPO variable
-      #   env: 
-      #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #   run: |
-      #         echo "IMAGE_REPO=$ECR_REGISTRY/$SERVICE_NAME" >> $GITHUB_ENV
-      # - name: 10.Set up QEMU
-      #   uses: docker/setup-qemu-action@v2
-
-      # - name: 11.Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v2
-
-      - name: 12.Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: 13.Build DockerImage and push
-        run: |
-          cd $SERVICE_NAME
-
-          docker build -t hackerlan7/bc-go-api:$IMAGE_TAG \
-          -t hackerlan7/bc-go-api:latest \
-          -f Dockerfile-github .
-          docker push hackerlan7/bc-go-api:$IMAGE_TAG
-          docker push hackerlan7/bc-go-api:latest
-
-        # docker build -t $IMAGE_REPO:$IMAGE_TAG \
-        # -t $IMAGE_REPO:latest \
-        # -f Dockerfile-github .
-        # docker push $IMAGE_REPO:$IMAGE_TAG
-        # docker push $IMAGE_REPO:latest
-
-      # - name: 15.Cache Docker layers
-      #   uses: actions/cache@v2
-      #   with:
-      #     path: /tmp/.buildx-cache
-      #     # Key is named differently to avoid collision
-      #     key: ${{ runner.os }}-buildx-${{ github.sha }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-buildx 
-
-      # - name: 16.Build and push
-      #   id: docker_build
-      #   uses: docker/build-push-action@v2
-      #   with:
-      #       context: ./${{ env.SERVICE_NAME }}
-      #       file: ./${{ env.SERVICE_NAME }}/Dockerfile-github
-      #       builder: ${{ steps.buildx.outputs.name }}
-      #       push: true
-      #       tags: |
-      #             hackerlan7/go-api:${{ env.IMAGE_TAG }}
-      #             ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
-      #             ${{ env.IMAGE_REPO }}:latest
-      #       cache-from: type=local,src=/tmp/.buildx-cache
-      #       cache-to: type=local,dest=/tmp/.buildx-cache-new 
-
-      # - name: 17.Update cache
-      #   run: |
-      #     ls -la /tmp
-      #     rm -rf /tmp/.buildx-cache
-      #     mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+    - name: build and push image
+      uses: docker/build-push-action@v1
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        repository: hackerlan7/go-api
+        dockerfile: Dockerfile
+        always_pull: true
+        tags: latest
 
 
 
 
+# name: go-api
+
+# on:
+#   push:
+#     branches:
+#       - master
+#   #   tags:
+#   #     - '*'
+#   # pull_request:
+
+# env: 
+#     ENV: dr
+#     SERVICE_NAME: ${{ github.event.repository.name }}
+#     INFRA_ENV_REPO: infra-env
+#     GITHUB_ORG: PGITAb
+#     AWS_REGION: eu-central-1
+#     BUILD_VERSION: v${{github.run_number}}-build
+
+# jobs:
+#     build-and-push:
+#       name: Build the docker image and push to ECR
+#       #runs-on: ["self-hosted","customized"]
+#       runs-on: ubuntu-latest
+#       #timeout-minutes: 5
+#       strategy:
+#         matrix:
+#           go-version: [ '1.18' ]     
+
+#       steps:
+#       - name: 01.Setup go
+#         uses: actions/setup-go@v3
+#         with:
+#           go-version: ${{ matrix.go-version }}
+
+#       - name: 02.Checkout
+#         uses: actions/checkout@master
+#         with:
+#             path: ./${{ env.SERVICE_NAME }}
+#             fetch-depth: 0            
+#             token: ${{ secrets.ORG_GITHUB_TOKEN }}  
+
+#       - name: 03.Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v1
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
+
+#       - name: 04.Get new tag version
+#         id: getbumptag
+#         uses: anothrNick/github-tag-action@1.36.0
+#         env:
+#             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#             WITH_V: true
+#             DRY_RUN: true
+#             DEFAULT_BUMP: patch
+#             RELEASE_BRANCHES: master
+#             SOURCE: ${{ env.SERVICE_NAME }}
+
+#       # - name: 04.Bump version and push tag
+#       #   id: bumptag
+#       #   uses: anothrNick/github-tag-action@1.36.0
+#       #   env:
+#       #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       #       WITH_V: true
+#       #       DRY_RUN: false
+#       #       DEFAULT_BUMP: patch
+#       #       RELEASE_BRANCHES: master
+#       #       SOURCE: ${{ env.SERVICE_NAME }}
+
+#       - name: 05.Get IMAGE TAG
+#         run: |
+#               VERSION=${{ steps.getbumptag.outputs.new_tag }}
+#               echo "VERSION=${{ steps.getbumptag.outputs.new_tag }}" >> $GITHUB_ENV
+#               echo "IMAGE_TAG=$BUILD_VERSION-$VERSION" >> $GITHUB_ENV     
+
+#       - name: 06.Bump Version and Commit New Version files Update
+#         run: |       
+#               cd $SERVICE_NAME
+#               echo $VERSION > .version.$ENV
+#               git config --global user.name 'Version_bot'
+#               git config --global user.email 'Version_bot@users.noreply.github.com'
+#               git add .version.$ENV         
+#               git commit -am "Version update to $VERSION [skip ci]" && git push || echo "No New version Commit"
+
+#       - name: 07.Go mod cache
+#         uses: actions/cache@v2
+#         with:
+#           path: ~/go/pkg/mod
+#           key: ${{ runner.os }}-go-${{ matrix.go-version }}-mod-${{ hashFiles('**/go.mod') }}-${{ hashFiles('**/go.sum') }}
+#           restore-keys: |
+#             ${{ runner.os }}-go-${{ matrix.go-version }}
+
+#       - name: 08.Configure Git for private modules
+#         run: |
+#           git config --global url."https://${{ secrets.ORG_GITHUB_TOKEN }}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+
+#       - name: 09.Go Build application
+#         run: |
+#           cd $SERVICE_NAME
+#           export GO111MODULE=on
+#           GOSUMDB=off go mod download
+#           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=direct GOSUMDB=off go build -v cmd/server/main.go   
+
+#       # - name: 10.Login to Amazon ECR
+#       #   id: login-ecr
+#       #   uses: aws-actions/amazon-ecr-login@v1    
+
+#       # - name: 11.Set IMGAE_REPO variable
+#       #   env: 
+#       #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+#       #   run: |
+#       #         echo "IMAGE_REPO=$ECR_REGISTRY/$SERVICE_NAME" >> $GITHUB_ENV
+#       # - name: 10.Set up QEMU
+#       #   uses: docker/setup-qemu-action@v2
+
+#       # - name: 11.Set up Docker Buildx
+#       #   uses: docker/setup-buildx-action@v2
+
+#       - name: 12.Login to Docker Hub
+#         uses: docker/login-action@v2
+#         with:
+#           username: ${{ secrets.DOCKER_USERNAME }}
+#           password: ${{ secrets.DOCKER_PASSWORD }}
+
+#       - name: 13.Build DockerImage and push
+#         run: |
+#           cd $SERVICE_NAME
+
+#           docker build -t hackerlan7/bc-go-api:$IMAGE_TAG \
+#           -t hackerlan7/bc-go-api:latest \
+#           -f Dockerfile-github .
+#           docker push hackerlan7/bc-go-api:$IMAGE_TAG
+#           docker push hackerlan7/bc-go-api:latest
+
+#         # docker build -t $IMAGE_REPO:$IMAGE_TAG \
+#         # -t $IMAGE_REPO:latest \
+#         # -f Dockerfile-github .
+#         # docker push $IMAGE_REPO:$IMAGE_TAG
+#         # docker push $IMAGE_REPO:latest
+
+#       # - name: 15.Cache Docker layers
+#       #   uses: actions/cache@v2
+#       #   with:
+#       #     path: /tmp/.buildx-cache
+#       #     # Key is named differently to avoid collision
+#       #     key: ${{ runner.os }}-buildx-${{ github.sha }}
+#       #     restore-keys: |
+#       #       ${{ runner.os }}-buildx 
+
+#       # - name: 16.Build and push
+#       #   id: docker_build
+#       #   uses: docker/build-push-action@v2
+#       #   with:
+#       #       context: ./${{ env.SERVICE_NAME }}
+#       #       file: ./${{ env.SERVICE_NAME }}/Dockerfile-github
+#       #       builder: ${{ steps.buildx.outputs.name }}
+#       #       push: true
+#       #       tags: |
+#       #             hackerlan7/go-api:${{ env.IMAGE_TAG }}
+#       #             ${{ env.IMAGE_REPO }}:${{ env.IMAGE_TAG }}
+#       #             ${{ env.IMAGE_REPO }}:latest
+#       #       cache-from: type=local,src=/tmp/.buildx-cache
+#       #       cache-to: type=local,dest=/tmp/.buildx-cache-new 
+
+#       # - name: 17.Update cache
+#       #   run: |
+#       #     ls -la /tmp
+#       #     rm -rf /tmp/.buildx-cache
+#       #     mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
 
 
-# build-push-action@v1 寫法
-    # - name: build and push image
-    #   uses: docker/build-push-action@v1
-    #   with:
-    #     username: ${{ secrets.DOCKER_USERNAME }}
-    #     password: ${{ secrets.DOCKER_PASSWORD }}
-    #     repository: hackerlan7/go-api
-    #     dockerfile: Dockerfile
-    #     always_pull: true
-    #     tags: test
+
+
+
+
+# # build-push-action@v1 寫法
+#     # - name: build and push image
+#     #   uses: docker/build-push-action@v1
+#     #   with:
+#     #     username: ${{ secrets.DOCKER_USERNAME }}
+#     #     password: ${{ secrets.DOCKER_PASSWORD }}
+#     #     repository: hackerlan7/go-api
+#     #     dockerfile: Dockerfile
+#     #     always_pull: true
+#     #     tags: test
