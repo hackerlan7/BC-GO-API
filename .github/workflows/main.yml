@@ -127,11 +127,11 @@ jobs:
         run: |
           cd $SERVICE_NAME
 
-          docker build -t hackerlan7/go-api:$IMAGE_TAG \
-          -t hackerlan7/go-api:latest \
+          docker build -t hackerlan7/bc-go-api:$IMAGE_TAG \
+          -t hackerlan7/bc-go-api:latest \
           -f Dockerfile-github .
-          docker push hackerlan7/go-api:$IMAGE_TAG
-          docker push hackerlan7/go-api:latest
+          docker push hackerlan7/bc-go-api:$IMAGE_TAG
+          docker push hackerlan7/bc-go-api:latest
 
         # docker build -t $IMAGE_REPO:$IMAGE_TAG \
         # -t $IMAGE_REPO:latest \
