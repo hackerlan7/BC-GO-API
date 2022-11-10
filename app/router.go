@@ -11,9 +11,8 @@ import (
 func Router() {
 	//設定環境模式 不知道debug跳出來的
 	gin.SetMode(gin.ReleaseMode)
-
+	//Default已包含兩個middleware logger() & recovery()
 	router := gin.Default()
-	router.Use(LoggerToFile())
 	router.Use(cors.New(cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, // 允許的請求方法
 		AllowHeaders:     []string{"Origin", "Content-Length", "signature", "Content-type,"},
@@ -21,10 +20,8 @@ func Router() {
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}))
-
 	//當客戶端執行post方法的請求時會執行後面的函數
 	router.POST("/check", api.Check)
-
 	router.POST("/transfer", api.Transfer)
 	router.POST("/bet", api.HistoryBet)
 	router.POST("/summary", api.HistorySummary)
@@ -39,7 +36,7 @@ func Router() {
 	tp.POST("/withdraw", api.Withdraw)
 	tp.POST("/balance", api.Balance)
 	tp.POST("/logout", api.Logout)
-	//報錯
+	//錯誤提示
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "Bad Request"})
 	})

@@ -7,7 +7,7 @@ on:
   #   tags:
   #     - '*'
   # pull_request:
- 
+
 env: 
     ENV: dr
     SERVICE_NAME: ${{ github.event.repository.name }}
@@ -39,12 +39,12 @@ jobs:
             fetch-depth: 0            
             token: ${{ secrets.ORG_GITHUB_TOKEN }}  
 
-      # - name: 03.Configure AWS credentials
-      #   uses: aws-actions/configure-aws-credentials@v1
-      #   with:
-      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     aws-region: ${{ env.AWS_REGION }}
+      - name: 03.Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: 04.Get new tag version
         id: getbumptag
@@ -100,17 +100,17 @@ jobs:
           cd $SERVICE_NAME
           export GO111MODULE=on
           GOSUMDB=off go mod download
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=direct GOSUMDB=off go build -v main.go   
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOPROXY=direct GOSUMDB=off go build -v cmd/server/main.go   
 
-      # - name: 10.Login to Amazon ECR
-      #   id: login-ecr
-      #   uses: aws-actions/amazon-ecr-login@v1    
+      - name: 10.Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1    
 
-      # - name: 11.Set IMGAE_REPO variable
-      #   env: 
-      #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #   run: |
-      #         echo "IMAGE_REPO=$ECR_REGISTRY/$SERVICE_NAME" >> $GITHUB_ENV
+      - name: 11.Set IMGAE_REPO variable
+        env: 
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+              echo "IMAGE_REPO=$ECR_REGISTRY/$SERVICE_NAME" >> $GITHUB_ENV
       # - name: 10.Set up QEMU
       #   uses: docker/setup-qemu-action@v2
 
@@ -127,17 +127,17 @@ jobs:
         run: |
           cd $SERVICE_NAME
 
-          docker build -t hackerlan7/bc-go-api:$IMAGE_TAG \
-          -t hackerlan7/bc-go-api:latest \
+          docker build -t hackerlan7/go-api:$IMAGE_TAG \
+          -t hackerlan7/go-api:latest \
           -f Dockerfile-github .
-          docker push hackerlan7/bc-go-api:$IMAGE_TAG
-          docker push hackerlan7/bc-go-api:latest
+          docker push hackerlan7/go-api:$IMAGE_TAG
+          docker push hackerlan7/go-api:latest
 
-        # docker build -t $IMAGE_REPO:$IMAGE_TAG \
-        # -t $IMAGE_REPO:latest \
-        # -f Dockerfile-github .
-        # docker push $IMAGE_REPO:$IMAGE_TAG
-        # docker push $IMAGE_REPO:latest
+          docker build -t $IMAGE_REPO:$IMAGE_TAG \
+          -t $IMAGE_REPO:latest \
+          -f Dockerfile-github .
+          docker push $IMAGE_REPO:$IMAGE_TAG
+          docker push $IMAGE_REPO:latest
 
       # - name: 15.Cache Docker layers
       #   uses: actions/cache@v2

@@ -6,8 +6,6 @@ import (
 )
 
 func main() {
-	// app.InitDb()
-	app.InitLog()
 	fmt.Println("server is running")
 	app.Router()
 }
